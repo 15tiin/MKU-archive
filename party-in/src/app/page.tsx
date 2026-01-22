@@ -12,6 +12,12 @@ export default function Home() {
   const [voted, setVoted] = useState(false);
   const [showSwipeHint, setShowSwipeHint] = useState(true);
   const [showBackToTop, setShowBackToTop] = useState(false);
+  // --- REACTIONS ---
+ const [reactions, setReactions] = useState<Record<string, Record<string, number>>>({});
+ const [userReactions, setUserReactions] = useState<Record<string, string | null>>({});
+ const [activeReactionPicker, setActiveReactionPicker] = useState<string | null>(null);
+
+ const REACTION_EMOJIS = ["🔥", "😂", "👑", "💪", "💀", "👎"];
 
   // --- LIVE DATA STATES ---
   const [nominees, setNominees] = useState<any[]>([]);
@@ -27,6 +33,14 @@ export default function Home() {
 
   const scrollRef = useRef<HTMLDivElement | null>(null);
   const audioRef = useRef<HTMLAudioElement | null>(null);
+ const getUserId = () => {
+  let id = localStorage.getItem("mku_user_id");
+  if (!id) {
+    id = crypto.randomUUID();
+    localStorage.setItem("mku_user_id", id);
+    }
+   return id;
+   };
 
   // --- 1. INITIAL LOAD (Sanity + Vote Check) ---
   useEffect(() => {
@@ -60,6 +74,35 @@ export default function Home() {
     };
     fetchData();
   }, []);
+  // --- FETCH PHOTO REACTIONS ---
+ useEffect(() => {
+  const fetchReactions = async () => {
+    const { data } = await supabase
+      .from("photo_reactions")
+      .select("*");
+
+    if (!data) return;
+
+    const grouped: Record<string, Record<string, number>> = {};
+    const mine: Record<string, string | null> = {};
+    const userId = getUserId();
+
+    data.forEach(r => {
+      if (!grouped[r.photo_url]) grouped[r.photo_url] = {};
+      grouped[r.photo_url][r.emoji] =
+        (grouped[r.photo_url][r.emoji] || 0) + 1;
+
+      if (r.user_id === userId) {
+        mine[r.photo_url] = r.emoji;
+      }
+    });
+
+    setReactions(grouped);
+    setUserReactions(mine);
+  };
+
+  fetchReactions();
+}, []);
 
   // --- 2. REAL-TIME LISTENER (Watch Supabase) ---
   useEffect(() => {
@@ -95,6 +138,37 @@ export default function Home() {
       alert("Vote failed to log. Check connection.");
     }
   };
+const handleReaction = async (photoUrl: string, emoji: string) => {
+  const userId = getUserId();
+  const current = userReactions[photoUrl];
+
+  // remove old reaction
+  await supabase
+    .from("photo_reactions")
+    .delete()
+    .match({ photo_url: photoUrl, user_id: userId });
+
+  // if tapping same emoji → toggle off
+  if (current !== emoji) {
+    await supabase.from("photo_reactions").insert({
+      photo_url: photoUrl,
+      user_id: userId,
+      emoji,
+    });
+
+    // haptic feedback (mobile)
+    if ("vibrate" in navigator) {
+      navigator.vibrate(25);
+    }
+  }
+
+  setUserReactions(prev => ({
+    ...prev,
+    [photoUrl]: current === emoji ? null : emoji,
+  }));
+
+  setActiveReactionPicker(null);
+};
 
   const startVibes = () => {
     setHasEntered(true);
@@ -245,7 +319,70 @@ export default function Home() {
                       onClick={() => setLightboxController({ toggler: !lightboxController.toggler, slide: i + 1 })}
                       className="aspect-[3/4] bg-neutral-950 rounded-2xl overflow-hidden group cursor-pointer"
                     >
-                      <img src={item.url} className="w-full h-full object-cover opacity-80 group-hover:scale-110 transition-transform duration-700" alt="archive" />
+                      <div
+  className="relative aspect-[3/4] bg-neutral-950 rounded-2xl overflow-hidden group"
+  onMouseDown={() => setActiveReactionPicker(item.url)}
+  onContextMenu={e => e.preventDefault()}
+>
+  <img
+    src={item.url}
+    className="w-full h-full object-cover opacity-85 group-hover:scale-110 transition-transform duration-700"
+    alt="archive"
+  />
+
+  {/* REACTION SUMMARY */}
+  {reactions[item.url] && (
+    <div className="
+      absolute bottom-3 left-1/2 -translate-x-1/2
+      flex items-center gap-2
+      px-3 py-1
+      rounded-full
+      bg-black/60 backdrop-blur-md
+      text-[11px]
+      border border-white/10
+      shadow-[0_0_20px_rgba(56,189,248,0.25)]
+    ">
+      {Object.entries(reactions[item.url])
+        .sort((a, b) => b[1] - a[1])
+        .slice(0, 3)
+        .map(([emoji]) => (
+          <span key={emoji}>{emoji}</span>
+        ))}
+      <span className="opacity-50">
+        {Object.values(reactions[item.url]).reduce((a, b) => a + b, 0)}
+      </span>
+    </div>
+  )}
+
+  {/* REACTION PICKER */}
+  {activeReactionPicker === item.url && (
+    <div className="absolute inset-0 flex items-center justify-center bg-black/40">
+      <div className="
+        flex gap-3 px-4 py-3 rounded-full
+        bg-black/80 backdrop-blur-xl
+        border border-transparent
+        bg-gradient-to-r from-pink-500/20 via-blue-500/20 to-purple-500/20
+        shadow-[0_0_30px_rgba(59,130,246,0.35)]
+      ">
+        {REACTION_EMOJIS.map(e => (
+          <button
+            key={e}
+            onClick={() => handleReaction(item.url, e)}
+            className={`
+              text-xl transition-transform
+              ${userReactions[item.url] === e
+                ? "scale-125 drop-shadow-[0_0_10px_rgba(59,130,246,0.8)]"
+                : "opacity-70 hover:scale-110"}
+            `}
+          >
+            {e}
+          </button>
+        ))}
+      </div>
+    </div>
+  )}
+</div>
+
                     </motion.div>
                   ))}
                 </div>
