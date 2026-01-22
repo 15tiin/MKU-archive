@@ -35,6 +35,26 @@ export default function Home() {
 
   const scrollRef = useRef<HTMLDivElement | null>(null);
   const audioRef = useRef<HTMLAudioElement | null>(null);
+  // Stop audio when tab is not visible
+useEffect(() => {
+  const handleVisibilityChange = () => {
+    if (audioRef.current) {
+      if (document.hidden) {
+        // Tab is hidden - pause music
+        audioRef.current.pause();
+      } else {
+        // Tab is visible again - resume music if user has entered
+        if (hasEntered) {
+          audioRef.current.play().catch(() => {});
+        }
+      }
+    }
+  };
+
+  document.addEventListener('visibilitychange', handleVisibilityChange);
+  return () => document.removeEventListener('visibilitychange', handleVisibilityChange);
+}, [hasEntered]);
+
  const getUserId = () => {
   let id = localStorage.getItem("mku_user_id");
   if (!id) {
