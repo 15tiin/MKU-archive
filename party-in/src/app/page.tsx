@@ -16,6 +16,8 @@ export default function Home() {
  const [reactions, setReactions] = useState<Record<string, Record<string, number>>>({});
  const [userReactions, setUserReactions] = useState<Record<string, string | null>>({});
  const [activeReactionPicker, setActiveReactionPicker] = useState<string | null>(null);
+ const [longPressTimer, setLongPressTimer] = useState<NodeJS.Timeout | null>(null);
+ const [showLightboxReactions, setShowLightboxReactions] = useState(false);
 
  const REACTION_EMOJIS = ["🔥", "😂", "👑", "💪", "💀", "👎"];
 
@@ -116,7 +118,43 @@ export default function Home() {
       .subscribe();
     return () => { supabase.removeChannel(channel) };
   }, []);
-
+  // --- REAL-TIME REACTIONS LISTENER ---
+ useEffect(() => {
+  const channel = supabase
+    .channel('realtime-reactions')
+    .on('postgres_changes', { event: '*', schema: 'public', table: 'photo_reactions' }, async () => {
+      // Re-fetch all reactions when anyone reacts
+      const { data } = await supabase.from("photo_reactions").select("*");
+      if (data) {
+        const grouped: Record<string, Record<string, number>> = {};
+        const mine: Record<string, string | null> = {};
+        const userId = getUserId();
+        
+        data.forEach(r => {
+          if (!grouped[r.photo_url]) grouped[r.photo_url] = {};
+          grouped[r.photo_url][r.emoji] = (grouped[r.photo_url][r.emoji] || 0) + 1;
+          if (r.user_id === userId) {
+            mine[r.photo_url] = r.emoji;
+          }
+        });
+        
+        setReactions(grouped);
+        setUserReactions(mine);
+      }
+    })
+    .subscribe();
+  return () => { supabase.removeChannel(channel) };
+ }, []);
+// --- AUTO-HIDE LIGHTBOX REACTIONS AFTER 4 SECONDS ---
+useEffect(() => {
+  if (showLightboxReactions) {
+    const timer = setTimeout(() => {
+      setShowLightboxReactions(false);
+    }, 4000);
+    return () => clearTimeout(timer);
+  }
+ }, [showLightboxReactions]);
+  
   // --- 3. BACK TO TOP BUTTON VISIBILITY ---
   useEffect(() => {
     const handleScroll = () => {
@@ -138,38 +176,61 @@ export default function Home() {
       alert("Vote failed to log. Check connection.");
     }
   };
+// Long press handlers
+const handleLongPressStart = (photoUrl: string, e: any) => {
+  e.preventDefault();
+  const timer = setTimeout(() => {
+    setActiveReactionPicker(photoUrl);
+  }, 500);
+  setLongPressTimer(timer);
+};
+
+const handleLongPressEnd = () => {
+  if (longPressTimer) {
+    clearTimeout(longPressTimer);
+    setLongPressTimer(null);
+  }
+ };
 const handleReaction = async (photoUrl: string, emoji: string) => {
   const userId = getUserId();
   const current = userReactions[photoUrl];
 
-  // remove old reaction
   await supabase
     .from("photo_reactions")
     .delete()
     .match({ photo_url: photoUrl, user_id: userId });
 
-  // if tapping same emoji → toggle off
   if (current !== emoji) {
     await supabase.from("photo_reactions").insert({
       photo_url: photoUrl,
       user_id: userId,
       emoji,
     });
-
-    // haptic feedback (mobile)
-    if ("vibrate" in navigator) {
-      navigator.vibrate(25);
-    }
   }
 
+  // HAPTIC FEEDBACK (only when tapping emoji)
+  navigator.vibrate?.(40);
+
+  // Update local state
   setUserReactions(prev => ({
     ...prev,
     [photoUrl]: current === emoji ? null : emoji,
   }));
 
-  setActiveReactionPicker(null);
-};
+  // Re-fetch reactions to update counts
+  const { data } = await supabase.from("photo_reactions").select("*");
+  if (data) {
+    const grouped: Record<string, Record<string, number>> = {};
+    data.forEach(r => {
+      if (!grouped[r.photo_url]) grouped[r.photo_url] = {};
+      grouped[r.photo_url][r.emoji] = (grouped[r.photo_url][r.emoji] || 0) + 1;
+    });
+    setReactions(grouped);
+  }
 
+  setActiveReactionPicker(null);
+  setShowLightboxReactions(false);
+ };
   const startVibes = () => {
     setHasEntered(true);
     if (audioRef.current) {
@@ -301,100 +362,230 @@ const handleReaction = async (photoUrl: string, emoji: string) => {
               </div>
             </section>
 
-            {/* ARCHIVE SECTION */}
-            <section className="py-32 px-4 md:px-10 bg-black border-t border-white/5">
-              <div className="max-w-7xl mx-auto">
-                <div className="mb-16 flex justify-between items-end">
-                  <div>
-                    <h3 className="text-[10px] tracking-[1em] uppercase opacity-30 italic mb-2">The Archive 📂</h3>
-                    <h4 className="text-xl font-light uppercase tracking-tighter">Every Moment Captured 📸</h4>
-                  </div>
-                  <p className="text-[9px] opacity-40 uppercase tracking-widest pb-1">Tap to Expand & Save</p>
-                </div>
-
-                <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-                  {archive.map((item, i) => (
-                    <motion.div 
-                      key={i} 
-                      onClick={() => setLightboxController({ toggler: !lightboxController.toggler, slide: i + 1 })}
-                      className="aspect-[3/4] bg-neutral-950 rounded-2xl overflow-hidden group cursor-pointer"
-                    >
-                      <div
-  className="relative aspect-[3/4] bg-neutral-950 rounded-2xl overflow-hidden group"
-  onMouseDown={() => setActiveReactionPicker(item.url)}
-  onContextMenu={e => e.preventDefault()}
->
-  <img
-    src={item.url}
-    className="w-full h-full object-cover opacity-85 group-hover:scale-110 transition-transform duration-700"
-    alt="archive"
-  />
-
-  {/* REACTION SUMMARY */}
-  {reactions[item.url] && (
-    <div className="
-      absolute bottom-3 left-1/2 -translate-x-1/2
-      flex items-center gap-2
-      px-3 py-1
-      rounded-full
-      bg-black/60 backdrop-blur-md
-      text-[11px]
-      border border-white/10
-      shadow-[0_0_20px_rgba(56,189,248,0.25)]
-    ">
-      {Object.entries(reactions[item.url])
-        .sort((a, b) => b[1] - a[1])
-        .slice(0, 3)
-        .map(([emoji]) => (
-          <span key={emoji}>{emoji}</span>
-        ))}
-      <span className="opacity-50">
-        {Object.values(reactions[item.url]).reduce((a, b) => a + b, 0)}
-      </span>
-    </div>
-  )}
-
-  {/* REACTION PICKER */}
-  {activeReactionPicker === item.url && (
-    <div className="absolute inset-0 flex items-center justify-center bg-black/40">
-      <div className="
-        flex gap-3 px-4 py-3 rounded-full
-        bg-black/80 backdrop-blur-xl
-        border border-transparent
-        bg-gradient-to-r from-pink-500/20 via-blue-500/20 to-purple-500/20
-        shadow-[0_0_30px_rgba(59,130,246,0.35)]
-      ">
-        {REACTION_EMOJIS.map(e => (
-          <button
-            key={e}
-            onClick={() => handleReaction(item.url, e)}
-            className={`
-              text-xl transition-transform
-              ${userReactions[item.url] === e
-                ? "scale-125 drop-shadow-[0_0_10px_rgba(59,130,246,0.8)]"
-                : "opacity-70 hover:scale-110"}
-            `}
-          >
-            {e}
-          </button>
-        ))}
+            {/* ARCHIVE SECTION WITH REACTIONS */}
+<section className="py-32 px-4 md:px-10 bg-black border-t border-white/5">
+  <div className="max-w-7xl mx-auto">
+    <div className="mb-16 flex justify-between items-end">
+      <div>
+        <h3 className="text-[10px] tracking-[1em] uppercase opacity-30 italic mb-2">The Archive 📂</h3>
+        <h4 className="text-xl font-light uppercase tracking-tighter">Every Moment Captured 📸</h4>
       </div>
+      <p className="text-[9px] opacity-40 uppercase tracking-widest pb-1">Long press to react</p>
     </div>
-  )}
-</div>
 
-                    </motion.div>
-                  ))}
+    <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+      {archive.map((item, i) => {
+        const photoReactions = reactions[item.url] || {};
+        const topEmojis = Object.entries(photoReactions)
+          .sort((a, b) => b[1] - a[1])
+          .slice(0, 3)
+          .map(([emoji]) => emoji);
+        const totalCount = Object.values(photoReactions).reduce((a, b) => a + b, 0);
+
+        return (
+          <div key={i} className="relative">
+            <motion.div
+              onClick={(e) => {
+                if (!activeReactionPicker) {
+                  setLightboxController({ toggler: !lightboxController.toggler, slide: i + 1 });
+                }
+              }}
+              onTouchStart={(e) => handleLongPressStart(item.url, e)}
+              onTouchEnd={handleLongPressEnd}
+              onMouseDown={(e) => handleLongPressStart(item.url, e)}
+              onMouseUp={handleLongPressEnd}
+              onMouseLeave={handleLongPressEnd}
+              onContextMenu={(e) => e.preventDefault()}
+              className="aspect-[3/4] bg-neutral-950 rounded-2xl overflow-hidden group cursor-pointer relative"
+            >
+              <img
+                src={item.url}
+                className="w-full h-full object-cover opacity-80 group-hover:scale-110 transition-transform duration-700"
+                alt="archive"
+              />
+
+              {/* REACTION SUMMARY - Gradient Container */}
+              {totalCount > 0 && !activeReactionPicker && (
+                <div className="absolute bottom-2 left-2">
+                  <div className="relative p-[2px] rounded-full bg-gradient-to-r from-purple-600 via-pink-500 to-blue-500 shadow-2xl">
+                    <style>{`
+                      @keyframes gradientFlow {
+                        0% { background-position: 0% 50%; }
+                        50% { background-position: 100% 50%; }
+                        100% { background-position: 0% 50%; }
+                      }
+                    `}</style>
+                    <div
+                      style={{
+                        animation: 'gradientFlow 4s ease infinite',
+                        backgroundSize: '200% 200%'
+                      }}
+                      className="absolute inset-0 rounded-full bg-gradient-to-r from-purple-600 via-pink-500 to-blue-500"
+                    />
+                    <div className="relative bg-black/70 backdrop-blur-md rounded-full px-3 py-1.5 flex items-center gap-2">
+                      <span className="flex -space-x-0.5">
+                        {topEmojis.map(e => (
+                          <span key={e} className="text-sm">{e}</span>
+                        ))}
+                      </span>
+                      <span className="text-xs text-white/80">{totalCount}</span>
+                    </div>
+                  </div>
                 </div>
+              )}
+            </motion.div>
 
-                {/* The Zoom View */}
-                <FsLightbox
-                  toggler={lightboxController.toggler}
-                  sources={archive.map(img => img.url)}
-                  slide={lightboxController.slide}
-                />
-              </div>
-            </section>
+            {/* REACTION PICKER - Gradient Container at 68% */}
+            {activeReactionPicker === item.url && (
+              <motion.div
+                initial={{ y: 20, opacity: 0, scale: 0.9 }}
+                animate={{ y: 0, opacity: 1, scale: 1 }}
+                exit={{ y: 20, opacity: 0, scale: 0.9 }}
+                transition={{ type: "spring", damping: 15, stiffness: 300 }}
+                className="absolute top-[68%] left-1/2 -translate-x-1/2 z-50"
+                onClick={(e) => e.stopPropagation()}
+              >
+                <div className="relative p-[2px] rounded-full bg-gradient-to-r from-purple-600 via-pink-500 to-blue-500 shadow-2xl">
+                  <div
+                    style={{
+                      animation: 'gradientFlow 4s ease infinite',
+                      backgroundSize: '200% 200%'
+                    }}
+                    className="absolute inset-0 rounded-full bg-gradient-to-r from-purple-600 via-pink-500 to-blue-500"
+                  />
+                  <div className="relative bg-black/70 backdrop-blur-md rounded-full px-8 py-4 flex gap-5">
+                    {REACTION_EMOJIS.map((emoji, idx) => {
+                      const isActive = userReactions[item.url] === emoji;
+                      return (
+                        <motion.button
+                          key={emoji}
+                          initial={{ scale: 0 }}
+                          animate={{ scale: 1 }}
+                          transition={{ delay: idx * 0.04, type: "spring" }}
+                          whileHover={{ scale: 1.2 }}
+                          whileTap={{ scale: 0.85 }}
+                          onClick={() => handleReaction(item.url, emoji)}
+                          className={`text-[32px] transition-all duration-200 ${
+                            isActive
+                              ? 'scale-125 drop-shadow-[0_0_8px_rgba(255,255,255,0.8)]'
+                              : 'hover:drop-shadow-[0_0_8px_rgba(255,255,255,0.5)]'
+                          }`}
+                        >
+                          {emoji}
+                        </motion.button>
+                      );
+                    })}
+                  </div>
+                </div>
+              </motion.div>
+            )}
+          </div>
+        );
+      })}
+    </div>
+
+    {/* LIGHTBOX */}
+    <FsLightbox
+      toggler={lightboxController.toggler}
+      sources={archive.map(img => img.url)}
+      slide={lightboxController.slide}
+    />
+
+    {/* LIGHTBOX REACTIONS OVERLAY */}
+    {lightboxController.toggler && (
+      <div
+        className="fixed inset-0 z-[9999] pointer-events-none flex items-end justify-center pb-6"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div className="pointer-events-auto">
+          {(() => {
+            const currentPhoto = archive[lightboxController.slide - 1];
+            if (!currentPhoto) return null;
+            
+            const photoUrl = currentPhoto.url;
+            const counts = reactions[photoUrl] || {};
+            const topEmojis = Object.entries(counts)
+              .sort((a, b) => b[1] - a[1])
+              .slice(0, 3)
+              .map(([emoji]) => emoji);
+            const total = Object.values(counts).reduce((a, b) => a + b, 0);
+            const userReaction = userReactions[photoUrl];
+
+            return (
+              <>
+                {/* SUMMARY - Bottom Center */}
+                {!showLightboxReactions && total > 0 && (
+                  <button onClick={() => setShowLightboxReactions(true)}>
+                    <div className="relative p-[2px] rounded-full bg-gradient-to-r from-purple-600 via-pink-500 to-blue-500 shadow-2xl">
+                      <div
+                        style={{
+                          animation: 'gradientFlow 4s ease infinite',
+                          backgroundSize: '200% 200%'
+                        }}
+                        className="absolute inset-0 rounded-full bg-gradient-to-r from-purple-600 via-pink-500 to-blue-500"
+                      />
+                      <div className="relative bg-black/70 backdrop-blur-md rounded-full px-4 py-2 flex items-center gap-2">
+                        <span className="flex -space-x-1">
+                          {topEmojis.map(e => (
+                            <span key={e} className="text-lg">{e}</span>
+                          ))}
+                        </span>
+                        <span className="text-sm text-white/80">{total}</span>
+                      </div>
+                    </div>
+                  </button>
+                )}
+
+                {/* FULL BREAKDOWN */}
+                {showLightboxReactions && (
+                  <motion.div
+                    initial={{ y: 20, opacity: 0 }}
+                    animate={{ y: 0, opacity: 1 }}
+                    exit={{ y: 20, opacity: 0 }}
+                  >
+                    <div className="relative p-[2px] rounded-full bg-gradient-to-r from-purple-600 via-pink-500 to-blue-500 shadow-2xl">
+                      <div
+                        style={{
+                          animation: 'gradientFlow 4s ease infinite',
+                          backgroundSize: '200% 200%'
+                        }}
+                        className="absolute inset-0 rounded-full bg-gradient-to-r from-purple-600 via-pink-500 to-blue-500"
+                      />
+                      <div className="relative bg-black/70 backdrop-blur-md rounded-full px-8 py-4 flex gap-6">
+                        {REACTION_EMOJIS.map(emoji => {
+                          const isActive = userReaction === emoji;
+                          const count = counts[emoji] || 0;
+                          return (
+                            <button
+                              key={emoji}
+                              onClick={() => handleReaction(photoUrl, emoji)}
+                              className="flex flex-col items-center gap-1"
+                            >
+                              <span
+                                className={`text-2xl transition ${
+                                  isActive
+                                    ? 'scale-125 drop-shadow-[0_0_10px_rgba(255,255,255,0.8)]'
+                                    : ''
+                                }`}
+                              >
+                                {emoji}
+                              </span>
+                              <span className="text-xs text-white/60">{count}</span>
+                            </button>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  </motion.div>
+                )}
+              </>
+            );
+          })()}
+        </div>
+      </div>
+    )}
+  </div>
+</section>
 
             {/* FOOTER */}
             <footer className="relative bg-black/80 border-t border-white/5 py-8 md:py-12 px-6 mt-20">
