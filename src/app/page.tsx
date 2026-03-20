@@ -820,7 +820,7 @@ const getCarouselCardProps = (index: number) => {
                               <motion.div
                                key="hidden"
                               >
-                                <div style={{ minWidth: "44px", padding: "6px 8px", borderRadius: "999px", background: "rgba(255,255,255,0.07)", border: "1px solid rgba(255,255,255,0.1)", backdropFilter: "blur(12px)", textAlign: "center" as const }}>
+                                <div style={{ minWidth: "40px", padding: "6px 8px", borderRadius: "999px", background: "rgba(255,255,255,0.07)", border: "1px solid rgba(255,255,255,0.1)", backdropFilter: "blur(12px)", textAlign: "center" as const }}>
                                  <div style={{ fontSize: "11px", fontWeight: 900, color: "rgba(255,255,255,0.3)" }}>?</div>
                                  <div style={{ fontSize: "6px", letterSpacing: "0.15em", opacity: 0.4, textTransform: "uppercase" }}>votes</div>
                                   </div>
