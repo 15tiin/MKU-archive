@@ -674,11 +674,10 @@ onTouchEnd={(e) => {
   const deltaX = e.changedTouches[0].clientX - carouselSwipeStartX.current;
   const deltaY = e.changedTouches[0].clientY - carouselSwipeStartY.current;
   if (Math.abs(deltaX) > 50 && Math.abs(deltaX) > Math.abs(deltaY)) {
-    if (deltaX < 0) carouselNext();
-    else carouselPrev();
+    if (deltaX < 0) carouselPrev();
+    else carouselNext();
   }
-}}
-onPointerDown={(e) => {
+}}onPointerDown={(e) => {
   carouselSwipeStartX.current = e.clientX;
   carouselSwipeStartY.current = e.clientY;
 }}
