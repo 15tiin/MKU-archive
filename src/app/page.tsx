@@ -665,19 +665,31 @@ const getCarouselCardProps = (index: number) => {
               {/* 3D CAROUSEL */}
               <div
                 className="relative flex items-center justify-center"
-                style={{ width: "100vw", height: "520px", perspective: "1000px" }}
-                onPointerDown={(e) => {
-                  carouselSwipeStartX.current = e.clientX;
-                  carouselSwipeStartY.current = e.clientY;
-                }}
-                onPointerUp={(e) => {
-                  const deltaX = e.clientX - carouselSwipeStartX.current;
-                  const deltaY = e.clientY - carouselSwipeStartY.current;
-                  if (Math.abs(deltaX) > 50 && Math.abs(deltaX) > Math.abs(deltaY)) {
-                    if (deltaX < 0) carouselNext();
-                    else carouselPrev();
-                  }
-                }}
+                style={{ width: "100vw", height: "520px", perspective: "1000px", touchAction: "pan-y" }}
+                onTouchStart={(e) => {
+  carouselSwipeStartX.current = e.touches[0].clientX;
+  carouselSwipeStartY.current = e.touches[0].clientY;
+}}
+onTouchEnd={(e) => {
+  const deltaX = e.changedTouches[0].clientX - carouselSwipeStartX.current;
+  const deltaY = e.changedTouches[0].clientY - carouselSwipeStartY.current;
+  if (Math.abs(deltaX) > 50 && Math.abs(deltaX) > Math.abs(deltaY)) {
+    if (deltaX < 0) carouselNext();
+    else carouselPrev();
+  }
+}}
+onPointerDown={(e) => {
+  carouselSwipeStartX.current = e.clientX;
+  carouselSwipeStartY.current = e.clientY;
+}}
+onPointerUp={(e) => {
+  const deltaX = e.clientX - carouselSwipeStartX.current;
+  const deltaY = e.clientY - carouselSwipeStartY.current;
+  if (Math.abs(deltaX) > 50 && Math.abs(deltaX) > Math.abs(deltaY)) {
+    if (deltaX < 0) carouselNext();
+    else carouselPrev();
+  }
+}}
               >
                 {nominees.map((n, i) => {
                   const props = getCarouselCardProps(i);
