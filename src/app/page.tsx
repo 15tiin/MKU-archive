@@ -397,6 +397,8 @@ const handleCarouselVote = async (handle: string) => {
   if (!error) {
     setVoted(true);
     localStorage.setItem("mku_voted", "true");
+    // CELEBRATION VIBRATION — ta ta TAH
+navigator.vibrate?.([80, 60, 80, 60, 200]);
     // CINEMATIC REVEAL — last place first
     carouselRevealOrder.forEach((nomIndex, step) => {
       setTimeout(() => {
