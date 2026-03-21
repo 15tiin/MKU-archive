@@ -674,8 +674,8 @@ onPointerUp={(e) => {
   const deltaX = e.clientX - carouselSwipeStartX.current;
   const deltaY = e.clientY - carouselSwipeStartY.current;
   if (Math.abs(deltaX) > 50 && Math.abs(deltaX) > Math.abs(deltaY)) {
-    if (deltaX < 0) carouselPrev();
-    else carouselNext();
+    if (deltaX < 0) carouselNext();
+else carouselPrev();
   }
 }}
               >
