@@ -564,7 +564,7 @@ const getCarouselCardProps = (index: number) => {
                     onPointerDown={(e) => e.stopPropagation()}
                     onPointerUp={(e) => e.stopPropagation()}
                   >
-                    <div className="relative p-[2px] rounded-full shadow-2xl" style={{ background: "linear-gradient(to right, #9333ea, #ec4899, #3b82f6)" }}>
+                    <div className="relative p-[2px] rounded-full shadow-2xl" style={{ background: "linear-gradient(to right, #c2410c, #ea580c, #f97316)" }}>
                       <div className="relative bg-black/80 backdrop-blur-md rounded-full px-3 py-2 flex gap-2 items-center">
                         {REACTION_EMOJIS.map((emoji) => {
                           const isActive = currentUserReaction === emoji;
@@ -913,7 +913,7 @@ else carouselPrev();
                               }}
                               className="absolute bottom-2 left-2 reaction-summary"
                             >
-                              <div className="relative p-[2px] rounded-full shadow-xl" style={{ background: "linear-gradient(to right, #9333ea, #ec4899, #3b82f6)" }}>
+                              <div className="relative p-[2px] rounded-full shadow-xl" style={{ background: "linear-gradient(to right, #c2410c, #ea580c, #f97316)" }}>
                                 <div className="relative bg-black/70 backdrop-blur-md rounded-full px-3 py-1.5 flex items-center gap-1.5">
                                   <span className="flex -space-x-0.5">
                                     {topEmojis.map((e) => (
@@ -937,7 +937,7 @@ else carouselPrev();
                                 onClick={(e) => e.stopPropagation()}
                                 className="absolute bottom-2 left-2 reaction-breakdown z-40"
                               >
-                                <div className="relative p-[1.5px] rounded-full shadow-xl" style={{ background: "linear-gradient(to right, #9333ea, #ec4899, #3b82f6)" }}>
+                                <div className="relative p-[1.5px] rounded-full shadow-xl" style={{ background: "linear-gradient(to right, #c2410c, #ea580c, #f97316)" }}>
                                   <div className="relative bg-black/80 backdrop-blur-md rounded-full px-2 py-1.5 flex gap-1.5">
   {REACTION_EMOJIS.map(emoji => {
     const isActive = userReactions[item.url] === emoji;
@@ -978,7 +978,7 @@ else carouselPrev();
                               className="absolute top-[68%] left-1/2 -translate-x-1/2 z-50 reaction-picker"
                               onClick={(e) => e.stopPropagation()}
                             >
-                              <div className="relative p-[2px] rounded-full shadow-2xl" style={{ background: "linear-gradient(to right, #9333ea, #ec4899, #3b82f6)" }}>
+                              <div className="relative p-[2px] rounded-full shadow-2xl" style={{ background: "linear-gradient(to right, #c2410c, #ea580c, #f97316)" }}>
                                 <div className="relative bg-black/80 backdrop-blur-md rounded-full px-3 py-2 flex gap-2 items-center">
                                   {REACTION_EMOJIS.map((emoji, idx) => {
                                     const isActive = userReactions[item.url] === emoji;
