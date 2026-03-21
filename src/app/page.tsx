@@ -256,7 +256,7 @@ useEffect(() => {
       await supabase.from("photo_reactions").insert({ photo_url: photoUrl, user_id: userId, emoji });
     }
 
-    navigator.vibrate?.(40);
+    navigator.vibrate?.([30, 20, 60]);
 
     setUserReactions((prev) => ({
       ...prev,
