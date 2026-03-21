@@ -37,7 +37,10 @@ const carouselSwipeStartY = useRef(0);
   const lightboxLongPress = useRef<NodeJS.Timeout | null>(null);
   const swipeStartX = useRef(0);
   const swipeStartY = useRef(0);
-
+  const [lightboxDragY, setLightboxDragY] = useState(0);
+  const [lightboxDragX, setLightboxDragX] = useState(0);
+const [lightboxDirection, setLightboxDirection] = useState(0);
+const [lightboxTransitioning, setLightboxTransitioning] = useState(false);
   const REACTION_EMOJIS = ["🔥", "😂", "👑", "💪", "💀", "👎"];
 
   // --- LIVE DATA STATES ---
@@ -296,20 +299,35 @@ useEffect(() => {
   };
 
   const goNext = () => {
+  if (lightboxTransitioning) return;
+  setLightboxDirection(1);
+  setLightboxTransitioning(true);
+  setLightboxDragX(0);
+  setTimeout(() => {
     setLightboxIndex((prev) => (prev + 1) % archive.length);
-    setShowLightboxReactions(false);
-  };
+    setLightboxTransitioning(false);
+  }, 350);
+  setShowLightboxReactions(false);
+};
 
-  const goPrev = () => {
+const goPrev = () => {
+  if (lightboxTransitioning) return;
+  setLightboxDirection(-1);
+  setLightboxTransitioning(true);
+  setLightboxDragX(0);
+  setTimeout(() => {
     setLightboxIndex((prev) => (prev - 1 + archive.length) % archive.length);
-    setShowLightboxReactions(false);
-  };
-
+    setLightboxTransitioning(false);
+  }, 350);
+  setShowLightboxReactions(false);
+};
   // --- LIGHTBOX PHOTO TAP HANDLER (double tap = 🔥, long press = picker) ---
 const handleLightboxPhotoPointerDown = (e: React.PointerEvent) => {
   e.stopPropagation();
   swipeStartX.current = e.clientX;
   swipeStartY.current = e.clientY;
+  setLightboxDragY(0);
+  setLightboxDragX(0);
   lightboxLongPress.current = setTimeout(() => {
     setShowLightboxReactions(true);
   }, 500);
@@ -324,16 +342,24 @@ const handleLightboxPhotoPointerUp = (e: React.PointerEvent) => {
   }
 
   const deltaX = e.clientX - swipeStartX.current;
-  const deltaY = e.clientY - swipeStartY.current;
+const deltaY = e.clientY - swipeStartY.current;
 
-  // If it was a swipe (moved more than 50px horizontally and not mostly vertical)
-  if (Math.abs(deltaX) > 50 && Math.abs(deltaX) > Math.abs(deltaY)) {
-    if (deltaX < 0) goNext();
-    else goPrev();
-    lightboxLastTap.current = 0;
-    return;
-  }
+setLightboxDragY(0);
 
+// Swipe DOWN to close
+if (deltaY > 80 && Math.abs(deltaY) > Math.abs(deltaX)) {
+  closeLightbox();
+  lightboxLastTap.current = 0;
+  return;
+}
+
+// Swipe LEFT or RIGHT to navigate
+if (Math.abs(deltaX) > 50 && Math.abs(deltaX) > Math.abs(deltaY)) {
+  if (deltaX < 0) goNext();
+  else goPrev();
+  lightboxLastTap.current = 0;
+  return;
+}
   // Otherwise check double tap
   const now = Date.now();
   const timeSince = now - lightboxLastTap.current;
@@ -357,8 +383,29 @@ const handleLightboxPhotoPointerLeave = () => {
     clearTimeout(lightboxLongPress.current);
     lightboxLongPress.current = null;
   }
-};
+ };
+const handleLightboxPhotoPointerMove = (e: React.PointerEvent) => {
+  const deltaY = e.clientY - swipeStartY.current;
+  const deltaX = e.clientX - swipeStartX.current;
 
+  // Cancel long press if dragging
+  if ((Math.abs(deltaX) > 10 || Math.abs(deltaY) > 10) && lightboxLongPress.current) {
+    clearTimeout(lightboxLongPress.current);
+    lightboxLongPress.current = null;
+  }
+
+  // Vertical drag — swipe down to close
+  if (deltaY > 0 && Math.abs(deltaY) > Math.abs(deltaX)) {
+    setLightboxDragY(deltaY);
+    setLightboxDragX(0);
+  }
+
+  // Horizontal drag — cube effect
+  if (Math.abs(deltaX) > Math.abs(deltaY)) {
+    setLightboxDragX(deltaX);
+    setLightboxDragY(0);
+  }
+};
   // --- NEXT PHOTO IN DRIP CAROUSEL ---
   const nextPhoto = (i: number, max: number) => {
     setPhotoIndices((prev) => {
@@ -494,104 +541,190 @@ const getCarouselCardProps = (index: number) => {
     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8.684 13.342C8.886 12.938 9 12.482 9 12c0-.482-.114-.938-.316-1.342m0 2.684a3 3 0 110-2.684m0 2.684l6.632 3.316m-6.632-6l6.632-3.316m0 0a3 3 0 105.367-2.684 3 3 0 00-5.367 2.684zm0 9.316a3 3 0 105.368 2.684 3 3 0 00-5.368-2.684z" />
   </svg>
 </button>
-            {/* PREV BUTTON */}
-            {archive.length > 1 && (
-              <button
-                onClick={(e) => { e.stopPropagation(); goPrev(); }}
-                className="absolute left-4 z-10 w-10 h-10 rounded-full bg-white/10 flex items-center justify-center text-white hover:bg-white/20 transition"
-              >
-                ‹
-              </button>
-            )}
+          
 
-            {/* NEXT BUTTON */}
-            {archive.length > 1 && (
-              <button
-                onClick={(e) => { e.stopPropagation(); goNext(); }}
-                className="absolute right-4 z-10 w-10 h-10 rounded-full bg-white/10 flex items-center justify-center text-white hover:bg-white/20 transition"
-              >
-                ›
-              </button>
-            )}
+          
+            {/* THE PHOTO — cube transition + drag + double tap + long press */}
+<div
+  className="relative select-none"
+  style={{
+    width: "90vw",
+    maxWidth: "420px",
+    height: "85vh",
+    perspective: "1200px",
+    touchAction: "none",
+  }}
+  onPointerDown={handleLightboxPhotoPointerDown}
+  onPointerUp={handleLightboxPhotoPointerUp}
+  onPointerLeave={handleLightboxPhotoPointerLeave}
+  onPointerMove={handleLightboxPhotoPointerMove}
+  onClick={(e) => e.stopPropagation()}
+>
+  {/* SWIPE DOWN WRAPPER */}
+  <div
+    style={{
+      width: "100%",
+      height: "100%",
+      transform: `translateY(${lightboxDragY}px)`,
+      opacity: lightboxDragY > 0 ? Math.max(0.4, 1 - lightboxDragY / 200) : 1,
+      transition: lightboxDragY === 0 ? "transform 0.3s ease, opacity 0.3s ease" : "none",
+    }}
+  >
+    {/* CUBE SCENE */}
+    <div
+      style={{
+        width: "100%",
+        height: "100%",
+        position: "relative",
+        transformStyle: "preserve-3d",
+        transform: (() => {
+          const progress = lightboxDragX / window.innerWidth;
+          const rotateY = progress * -60;
+          return `rotateY(${rotateY}deg)`;
+        })(),
+        transition: lightboxDragX === 0 ? "transform 0.35s cubic-bezier(0.4,0,0.2,1)" : "none",
+      }}
+    >
+      {/* CURRENT PHOTO FACE */}
+      <div
+        style={{
+          position: "absolute",
+          width: "100%",
+          height: "100%",
+          backfaceVisibility: "hidden",
+          borderRadius: "16px",
+          overflow: "hidden",
+        }}
+      >
+        <img
+          src={currentLightboxPhoto.url}
+          style={{ width: "100%", height: "100%", objectFit: "contain", display: "block" }}
+          alt="photo"
+          draggable={false}
+        />
+        {/* LEFT TAP ZONE */}
+        <div
+          style={{ position: "absolute", top: 0, left: 0, width: "20%", height: "100%", zIndex: 10 }}
+          onClick={(e) => { e.stopPropagation(); goPrev(); }}
+        />
+        {/* RIGHT TAP ZONE */}
+        <div
+          style={{ position: "absolute", top: 0, right: 0, width: "20%", height: "100%", zIndex: 10 }}
+          onClick={(e) => { e.stopPropagation(); goNext(); }}
+        />
 
-            {/* THE PHOTO — double tap + long press attached HERE only */}
-            <div
-              className="relative max-w-[90vw] max-h-[90vh] select-none"
-              onClick={(e) => e.stopPropagation()}
-              onPointerDown={handleLightboxPhotoPointerDown}
-              onPointerUp={handleLightboxPhotoPointerUp}
-              onPointerLeave={handleLightboxPhotoPointerLeave}
-              style={{ touchAction: "none" }}
-            >
+        {/* EDGE SHADOW when dragging */}
+        {lightboxDragX !== 0 && (
+          <div
+            style={{
+              position: "absolute",
+              top: 0,
+              right: lightboxDragX < 0 ? 0 : "auto",
+              left: lightboxDragX > 0 ? 0 : "auto",
+              width: "30%",
+              height: "100%",
+              background: `linear-gradient(to ${lightboxDragX < 0 ? "left" : "right"}, rgba(0,0,0,0.5), transparent)`,
+              pointerEvents: "none",
+            }}
+          />
+        )}
+      </div>
+
+      {/* NEXT/PREV PHOTO FACE — peeks in from the side */}
+      {lightboxDragX !== 0 && (
+        <div
+          style={{
+            position: "absolute",
+            width: "100%",
+            height: "100%",
+            backfaceVisibility: "hidden",
+            borderRadius: "16px",
+            overflow: "hidden",
+            transform: `rotateY(${lightboxDragX < 0 ? 60 : -60}deg) translateZ(-1px)`,
+            transformOrigin: lightboxDragX < 0 ? "left center" : "right center",
+          }}
+        >
+          {(() => {
+            const nextIndex = lightboxDragX < 0
+              ? (lightboxIndex + 1) % archive.length
+              : (lightboxIndex - 1 + archive.length) % archive.length;
+            const nextPhoto = archive[nextIndex];
+            return nextPhoto ? (
               <img
-                src={currentLightboxPhoto.url}
-                className="max-w-[90vw] max-h-[85vh] object-contain rounded-2xl pointer-events-none"
-                alt="photo"
+                src={nextPhoto.url}
+                style={{ width: "100%", height: "100%", objectFit: "contain", display: "block" }}
+                alt="next"
                 draggable={false}
               />
+            ) : null;
+          })()}
+        </div>
+      )}
+    </div>
+  </div>
 
-              {/* DOUBLE TAP 🔥 FLASH */}
-              <AnimatePresence>
-                {doubleTapFlash && (
-                  <motion.div
-                    key="flash"
-                    initial={{ opacity: 1, scale: 0.5 }}
-                    animate={{ opacity: 0, scale: 1.8 }}
-                    exit={{ opacity: 0 }}
-                    transition={{ duration: 0.9, ease: "easeOut" }}
-                    className="fixed pointer-events-none select-none z-[10001]"
-                    style={{
-                      left: doubleTapPosition.x - 40,
-                      top: doubleTapPosition.y - 40,
-                      fontSize: "80px",
-                      lineHeight: 1,
-                    }}
-                  >
-                    🔥
-                  </motion.div>
-                )}
-              </AnimatePresence>
+  {/* DOUBLE TAP 🔥 FLASH */}
+  <AnimatePresence>
+    {doubleTapFlash && (
+      <motion.div
+        key="flash"
+        initial={{ opacity: 1, scale: 0.5 }}
+        animate={{ opacity: 0, scale: 1.8 }}
+        exit={{ opacity: 0 }}
+        transition={{ duration: 0.9, ease: "easeOut" }}
+        className="fixed pointer-events-none select-none z-[10001]"
+        style={{
+          left: doubleTapPosition.x - 40,
+          top: doubleTapPosition.y - 40,
+          fontSize: "80px",
+          lineHeight: 1,
+        }}
+      >
+        🔥
+      </motion.div>
+    )}
+  </AnimatePresence>
 
-              {/* LIGHTBOX REACTION PICKER (long press) */}
-              <AnimatePresence>
-                {showLightboxReactions && (
-                  <motion.div
-                    key="lightbox-picker"
-                    initial={{ y: 10, opacity: 0, scale: 0.9 }}
-                    animate={{ y: 0, opacity: 1, scale: 1 }}
-                    exit={{ y: 10, opacity: 0, scale: 0.9 }}
-                    transition={{ type: "spring", damping: 15, stiffness: 300 }}
-                    className="absolute bottom-4 left-1/2 -translate-x-1/2 z-50"
-                    onClick={(e) => e.stopPropagation()}
-                    onPointerDown={(e) => e.stopPropagation()}
-                    onPointerUp={(e) => e.stopPropagation()}
-                  >
-                    <div className="relative p-[2px] rounded-full shadow-2xl" style={{ background: "linear-gradient(to right, #c2410c, #ea580c, #f97316)" }}>
-                      <div className="relative bg-black/80 backdrop-blur-md rounded-full px-3 py-2 flex gap-2 items-center">
-                        {REACTION_EMOJIS.map((emoji) => {
-                          const isActive = currentUserReaction === emoji;
-                          const count = currentPhotoReactions[emoji] || 0;
-                          return (
-                            <button
-                              key={emoji}
-                              onClick={() => handleReaction(currentPhotoUrl, emoji)}
-                              className="flex flex-col items-center gap-0.5"
-                            >
-                              <span className={`text-xl transition-all ${isActive ? "scale-125 drop-shadow-[0_0_8px_rgba(255,255,255,0.8)]" : ""}`}>
-                                {emoji}
-                              </span>
-                              {count > 0 && (
-                                <span className="text-[9px] text-white/60">{count}</span>
-                              )}
-                            </button>
-                          );
-                        })}
-                      </div>
-                    </div>
-                  </motion.div>
-                )}
-              </AnimatePresence>
-            </div>
+  {/* LIGHTBOX REACTION PICKER (long press) */}
+  <AnimatePresence>
+    {showLightboxReactions && (
+      <motion.div
+        key="lightbox-picker"
+        initial={{ y: 10, opacity: 0, scale: 0.9 }}
+        animate={{ y: 0, opacity: 1, scale: 1 }}
+        exit={{ y: 10, opacity: 0, scale: 0.9 }}
+        transition={{ type: "spring", damping: 15, stiffness: 300 }}
+        className="absolute bottom-4 left-1/2 -translate-x-1/2 z-50"
+        onClick={(e) => e.stopPropagation()}
+        onPointerDown={(e) => e.stopPropagation()}
+        onPointerUp={(e) => e.stopPropagation()}
+      >
+        <div className="relative p-[2px] rounded-full shadow-2xl" style={{ background: "linear-gradient(to right, #c2410c, #ea580c, #f97316)" }}>
+          <div className="relative bg-black/80 backdrop-blur-md rounded-full px-3 py-2 flex gap-2 items-center">
+            {REACTION_EMOJIS.map((emoji) => {
+              const isActive = currentUserReaction === emoji;
+              const count = currentPhotoReactions[emoji] || 0;
+              return (
+                <button
+                  key={emoji}
+                  onClick={() => handleReaction(currentPhotoUrl, emoji)}
+                  className="flex flex-col items-center gap-0.5"
+                >
+                  <span className={`text-xl transition-all ${isActive ? "scale-125 drop-shadow-[0_0_8px_rgba(255,255,255,0.8)]" : ""}`}>
+                    {emoji}
+                  </span>
+                  {count > 0 && (
+                    <span className="text-[9px] text-white/60">{count}</span>
+                  )}
+                </button>
+              );
+            })}
+          </div>
+        </div>
+      </motion.div>
+    )}
+  </AnimatePresence>
+</div>
 
             {/* COUNTER */}
             <div className="absolute bottom-5 left-1/2 -translate-x-1/2 text-[11px] tracking-widest opacity-40 uppercase">
