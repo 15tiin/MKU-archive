@@ -302,12 +302,12 @@ useEffect(() => {
 const goNext = () => {
   if (lightboxTransitioning) return;
   setLightboxTransitioning(true);
-  setLightboxDirection(1);
-  setLightboxDragX(0);
+  setLightboxDirection(-1);
   setTimeout(() => {
     setLightboxIndex((prev) => (prev + 1) % archive.length);
     setLightboxTransitioning(false);
     setLightboxDirection(0);
+    setLightboxDragX(0);
   }, 450);
   setShowLightboxReactions(false);
 };
@@ -315,12 +315,12 @@ const goNext = () => {
 const goPrev = () => {
   if (lightboxTransitioning) return;
   setLightboxTransitioning(true);
-  setLightboxDirection(-1);
-  setLightboxDragX(0);
+  setLightboxDirection(1);
   setTimeout(() => {
     setLightboxIndex((prev) => (prev - 1 + archive.length) % archive.length);
     setLightboxTransitioning(false);
     setLightboxDirection(0);
+    setLightboxDragX(0);
   }, 450);
   setShowLightboxReactions(false);
 };
