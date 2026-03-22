@@ -742,6 +742,7 @@ const rotation = lightboxTransitioning
     )}
   </AnimatePresence>
 </div>
+</div>
 
             {/* COUNTER */}
             <div className="absolute bottom-5 left-1/2 -translate-x-1/2 text-[11px] tracking-widest opacity-40 uppercase">
