@@ -475,7 +475,7 @@ const getCarouselCardProps = (index: number) => {
   };
 
   const leaderVotes = Math.max(...nominees.map((n) => n.votes || 0));
-  const cubeDepth = typeof window !== "undefined" ? Math.min(window.innerWidth * 0.3, 120) : 120;
+  const cubeDepth = typeof window !== "undefined" ? Math.min(window.innerWidth * 0.9, 420) / 2 : 150;
 const rotation = lightboxTransitioning
   ? lightboxDirection * -90
   : Math.max(-90, Math.min(90, (lightboxDragX / (typeof window !== "undefined" ? window.innerWidth : 400)) * -90));
@@ -555,7 +555,7 @@ const rotation = lightboxTransitioning
     width: "90vw",
     maxWidth: "420px",
     height: "85vh",
-    perspective: "800px",
+    perspective: `${cubeDepth * 6}px`,
     touchAction: "none",
   }}
   onPointerDown={handleLightboxPhotoPointerDown}
@@ -591,8 +591,7 @@ const rotation = lightboxTransitioning
       ? "transform 0.5s cubic-bezier(0.15,0,0.15,1)"
       : "none",
   }}
-></div>
-  
+>
   {/* FRONT FACE — current photo */}
   <div
     style={{
@@ -600,9 +599,11 @@ const rotation = lightboxTransitioning
       width: "100%",
       height: "100%",
       backfaceVisibility: "hidden",
+      WebkitBackfaceVisibility: "hidden",
       transform: `rotateY(0deg) translateZ(${cubeDepth}px)`,
       borderRadius: "16px",
       overflow: "hidden",
+      backgroundColor: "#000",
     }}
   >
     <img
@@ -613,68 +614,68 @@ const rotation = lightboxTransitioning
     />
     {/* LEFT TAP ZONE */}
     <div
-      style={{ position: "absolute", top: 0, left: 0, width: "20%", height: "100%", zIndex: 10 }}
+      style={{ position: "absolute", top: 0, left: 0, width: "25%", height: "100%", zIndex: 10 }}
       onClick={(e) => { e.stopPropagation(); goPrev(); }}
     />
     {/* RIGHT TAP ZONE */}
     <div
-      style={{ position: "absolute", top: 0, right: 0, width: "20%", height: "100%", zIndex: 10 }}
+      style={{ position: "absolute", top: 0, right: 0, width: "25%", height: "100%", zIndex: 10 }}
       onClick={(e) => { e.stopPropagation(); goNext(); }}
     />
   </div>
-{/* RIGHT FACE — next photo */}
+
+  {/* RIGHT FACE — next photo */}
   <div
     style={{
       position: "absolute",
       width: "100%",
       height: "100%",
       backfaceVisibility: "hidden",
+      WebkitBackfaceVisibility: "hidden",
       transform: `rotateY(90deg) translateZ(${cubeDepth}px)`,
       borderRadius: "16px",
       overflow: "hidden",
+      backgroundColor: "#000",
       opacity: (lightboxDragX < 0 || lightboxDirection === 1) ? 1 : 0,
       transition: "opacity 0.2s ease",
     }}
   >
-    {(() => {
-      const nextPhoto = archive[(lightboxIndex + 1) % archive.length];
-      return nextPhoto ? (
-        <img
-          src={nextPhoto.url}
-          style={{ width: "100%", height: "100%", objectFit: "contain", display: "block" }}
-          alt="next"
-          draggable={false}
-        />
-      ) : null;
-    })()}
+    {archive[(lightboxIndex + 1) % archive.length] && (
+      <img
+        src={archive[(lightboxIndex + 1) % archive.length].url}
+        style={{ width: "100%", height: "100%", objectFit: "contain", display: "block" }}
+        alt="next"
+        draggable={false}
+      />
+    )}
   </div>
 
-    {/* LEFT FACE — prev photo */}
+  {/* LEFT FACE — prev photo */}
   <div
     style={{
       position: "absolute",
       width: "100%",
       height: "100%",
       backfaceVisibility: "hidden",
+      WebkitBackfaceVisibility: "hidden",
       transform: `rotateY(-90deg) translateZ(${cubeDepth}px)`,
       borderRadius: "16px",
       overflow: "hidden",
+      backgroundColor: "#000",
       opacity: (lightboxDragX > 0 || lightboxDirection === -1) ? 1 : 0,
       transition: "opacity 0.2s ease",
     }}
   >
-    {(() => {
-      const prevPhoto = archive[(lightboxIndex - 1 + archive.length) % archive.length];
-      return prevPhoto ? (
-        <img
-          src={prevPhoto.url}
-          style={{ width: "100%", height: "100%", objectFit: "contain", display: "block" }}
-          alt="prev"
-          draggable={false}
-        />
-      ) : null;
-    })()}
+    {archive[(lightboxIndex - 1 + archive.length) % archive.length] && (
+      <img
+        src={archive[(lightboxIndex - 1 + archive.length) % archive.length].url}
+        style={{ width: "100%", height: "100%", objectFit: "contain", display: "block" }}
+        alt="prev"
+        draggable={false}
+      />
+    )}
   </div>
+
 </div>
 
       
