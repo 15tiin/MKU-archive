@@ -298,27 +298,29 @@ useEffect(() => {
     setShowLightboxReactions(false);
   };
 
-  const goNext = () => {
+const goNext = () => {
   if (lightboxTransitioning) return;
-  setLightboxDirection(1);
   setLightboxTransitioning(true);
+  setLightboxDirection(1);
   setLightboxDragX(0);
   setTimeout(() => {
     setLightboxIndex((prev) => (prev + 1) % archive.length);
     setLightboxTransitioning(false);
-  }, 350);
+    setLightboxDirection(0);
+  }, 400);
   setShowLightboxReactions(false);
 };
 
 const goPrev = () => {
   if (lightboxTransitioning) return;
-  setLightboxDirection(-1);
   setLightboxTransitioning(true);
+  setLightboxDirection(-1);
   setLightboxDragX(0);
   setTimeout(() => {
     setLightboxIndex((prev) => (prev - 1 + archive.length) % archive.length);
     setLightboxTransitioning(false);
-  }, 350);
+    setLightboxDirection(0);
+  }, 400);
   setShowLightboxReactions(false);
 };
   // --- LIGHTBOX PHOTO TAP HANDLER (double tap = 🔥, long press = picker) ---
@@ -335,36 +337,28 @@ const handleLightboxPhotoPointerDown = (e: React.PointerEvent) => {
 
 const handleLightboxPhotoPointerUp = (e: React.PointerEvent) => {
   e.stopPropagation();
-
   if (lightboxLongPress.current) {
     clearTimeout(lightboxLongPress.current);
     lightboxLongPress.current = null;
   }
-
   const deltaX = e.clientX - swipeStartX.current;
-const deltaY = e.clientY - swipeStartY.current;
+  const deltaY = e.clientY - swipeStartY.current;
 
-setLightboxDragY(0);
+  if (deltaY > 80 && Math.abs(deltaY) > Math.abs(deltaX)) {
+    closeLightbox();
+    return;
+  }
 
-// Swipe DOWN to close
-if (deltaY > 80 && Math.abs(deltaY) > Math.abs(deltaX)) {
-  closeLightbox();
-  lightboxLastTap.current = 0;
-  return;
-}
+  const threshold = window.innerWidth * 0.2;
+  if (Math.abs(deltaX) > threshold && Math.abs(deltaX) > Math.abs(deltaY)) {
+    if (deltaX < 0) goNext();
+    else goPrev();
+  } else {
+    setLightboxDragX(0);
+  }
 
-// Swipe LEFT or RIGHT to navigate
-if (Math.abs(deltaX) > 50 && Math.abs(deltaX) > Math.abs(deltaY)) {
-  if (deltaX < 0) goNext();
-  else goPrev();
-  lightboxLastTap.current = 0;
-  return;
-}
-  // Otherwise check double tap
   const now = Date.now();
-  const timeSince = now - lightboxLastTap.current;
-
-  if (timeSince < 300 && timeSince > 0) {
+  if (now - lightboxLastTap.current < 300 && now - lightboxLastTap.current > 0) {
     const currentPhoto = archive[lightboxIndex];
     if (currentPhoto) {
       handleReaction(currentPhoto.url, "🔥");
@@ -372,10 +366,8 @@ if (Math.abs(deltaX) > 50 && Math.abs(deltaX) > Math.abs(deltaY)) {
       setDoubleTapFlash(true);
       setTimeout(() => setDoubleTapFlash(false), 900);
     }
-    lightboxLastTap.current = 0;
-  } else {
-    lightboxLastTap.current = now;
   }
+  lightboxLastTap.current = now;
 };
 
 const handleLightboxPhotoPointerLeave = () => {
@@ -475,6 +467,10 @@ const getCarouselCardProps = (index: number) => {
   };
 
   const leaderVotes = Math.max(...nominees.map((n) => n.votes || 0));
+  const cubeDepth = typeof window !== "undefined" ? window.innerWidth / 2 : 200;
+const rotation = lightboxTransitioning
+  ? lightboxDirection * -90
+  : Math.max(-90, Math.min(90, (lightboxDragX / (typeof window !== "undefined" ? window.innerWidth : 400)) * -90));
 
   // --- CURRENT LIGHTBOX PHOTO DATA ---
   const currentLightboxPhoto = archive[lightboxIndex];
@@ -570,98 +566,102 @@ const getCarouselCardProps = (index: number) => {
       transition: lightboxDragY === 0 ? "transform 0.3s ease, opacity 0.3s ease" : "none",
     }}
   >
+    
     {/* CUBE SCENE */}
+<div
+  style={{
+    width: "100%",
+    height: "100%",
+    position: "relative",
+    transformStyle: "preserve-3d",
+    transform: `translateZ(-${cubeDepth}px) rotateY(${rotation}deg)`,
+    transition: lightboxDragX === 0
+      ? "transform 0.4s cubic-bezier(0.22,1,0.36,1)"
+      : "none",
+  }}
+>
+  {/* FRONT FACE — current photo */}
+  <div
+    style={{
+      position: "absolute",
+      width: "100%",
+      height: "100%",
+      backfaceVisibility: "hidden",
+      transform: `rotateY(0deg) translateZ(${cubeDepth}px)`,
+      borderRadius: "16px",
+      overflow: "hidden",
+    }}
+  >
+    <img
+      src={currentLightboxPhoto.url}
+      style={{ width: "100%", height: "100%", objectFit: "contain", display: "block" }}
+      alt="photo"
+      draggable={false}
+    />
+    {/* LEFT TAP ZONE */}
     <div
-      style={{
-        width: "100%",
-        height: "100%",
-        position: "relative",
-        transformStyle: "preserve-3d",
-        transform: (() => {
-          const progress = lightboxDragX / window.innerWidth;
-          const rotateY = progress * -60;
-          return `rotateY(${rotateY}deg)`;
-        })(),
-        transition: lightboxDragX === 0 ? "transform 0.35s cubic-bezier(0.4,0,0.2,1)" : "none",
-      }}
-    >
-      {/* CURRENT PHOTO FACE */}
-      <div
-        style={{
-          position: "absolute",
-          width: "100%",
-          height: "100%",
-          backfaceVisibility: "hidden",
-          borderRadius: "16px",
-          overflow: "hidden",
-        }}
-      >
+      style={{ position: "absolute", top: 0, left: 0, width: "20%", height: "100%", zIndex: 10 }}
+      onClick={(e) => { e.stopPropagation(); goPrev(); }}
+    />
+    {/* RIGHT TAP ZONE */}
+    <div
+      style={{ position: "absolute", top: 0, right: 0, width: "20%", height: "100%", zIndex: 10 }}
+      onClick={(e) => { e.stopPropagation(); goNext(); }}
+    />
+  </div>
+
+  {/* RIGHT FACE — next photo */}
+  <div
+    style={{
+      position: "absolute",
+      width: "100%",
+      height: "100%",
+      backfaceVisibility: "hidden",
+      transform: `rotateY(90deg) translateZ(${cubeDepth}px)`,
+      borderRadius: "16px",
+      overflow: "hidden",
+    }}
+  >
+    {(() => {
+      const nextPhoto = archive[(lightboxIndex + 1) % archive.length];
+      return nextPhoto ? (
         <img
-          src={currentLightboxPhoto.url}
+          src={nextPhoto.url}
           style={{ width: "100%", height: "100%", objectFit: "contain", display: "block" }}
-          alt="photo"
+          alt="next"
           draggable={false}
         />
-        {/* LEFT TAP ZONE */}
-        <div
-          style={{ position: "absolute", top: 0, left: 0, width: "20%", height: "100%", zIndex: 10 }}
-          onClick={(e) => { e.stopPropagation(); goPrev(); }}
-        />
-        {/* RIGHT TAP ZONE */}
-        <div
-          style={{ position: "absolute", top: 0, right: 0, width: "20%", height: "100%", zIndex: 10 }}
-          onClick={(e) => { e.stopPropagation(); goNext(); }}
-        />
-
-        {/* EDGE SHADOW when dragging */}
-        {lightboxDragX !== 0 && (
-          <div
-            style={{
-              position: "absolute",
-              top: 0,
-              right: lightboxDragX < 0 ? 0 : "auto",
-              left: lightboxDragX > 0 ? 0 : "auto",
-              width: "30%",
-              height: "100%",
-              background: `linear-gradient(to ${lightboxDragX < 0 ? "left" : "right"}, rgba(0,0,0,0.5), transparent)`,
-              pointerEvents: "none",
-            }}
-          />
-        )}
-      </div>
-
-      {/* NEXT/PREV PHOTO FACE — peeks in from the side */}
-      {lightboxDragX !== 0 && (
-        <div
-          style={{
-            position: "absolute",
-            width: "100%",
-            height: "100%",
-            backfaceVisibility: "hidden",
-            borderRadius: "16px",
-            overflow: "hidden",
-            transform: `rotateY(${lightboxDragX < 0 ? 60 : -60}deg) translateZ(-1px)`,
-            transformOrigin: lightboxDragX < 0 ? "left center" : "right center",
-          }}
-        >
-          {(() => {
-            const nextIndex = lightboxDragX < 0
-              ? (lightboxIndex + 1) % archive.length
-              : (lightboxIndex - 1 + archive.length) % archive.length;
-            const nextPhoto = archive[nextIndex];
-            return nextPhoto ? (
-              <img
-                src={nextPhoto.url}
-                style={{ width: "100%", height: "100%", objectFit: "contain", display: "block" }}
-                alt="next"
-                draggable={false}
-              />
-            ) : null;
-          })()}
-        </div>
-      )}
-    </div>
+      ) : null;
+    })()}
   </div>
+
+  {/* LEFT FACE — prev photo */}
+  <div
+    style={{
+      position: "absolute",
+      width: "100%",
+      height: "100%",
+      backfaceVisibility: "hidden",
+      transform: `rotateY(-90deg) translateZ(${cubeDepth}px)`,
+      borderRadius: "16px",
+      overflow: "hidden",
+    }}
+  >
+    {(() => {
+      const prevPhoto = archive[(lightboxIndex - 1 + archive.length) % archive.length];
+      return prevPhoto ? (
+        <img
+          src={prevPhoto.url}
+          style={{ width: "100%", height: "100%", objectFit: "contain", display: "block" }}
+          alt="prev"
+          draggable={false}
+        />
+      ) : null;
+    })()}
+  </div>
+</div>
+
+      
 
   {/* DOUBLE TAP 🔥 FLASH */}
   <AnimatePresence>
