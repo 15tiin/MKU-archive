@@ -37,6 +37,7 @@ const carouselSwipeStartY = useRef(0);
   const lightboxLongPress = useRef<NodeJS.Timeout | null>(null);
   const swipeStartX = useRef(0);
   const swipeStartY = useRef(0);
+  const swipeStartTime = useRef(0);
   const [lightboxDragY, setLightboxDragY] = useState(0);
   const [lightboxDragX, setLightboxDragX] = useState(0);
 const [lightboxDirection, setLightboxDirection] = useState(0);
@@ -307,7 +308,7 @@ const goNext = () => {
     setLightboxIndex((prev) => (prev + 1) % archive.length);
     setLightboxTransitioning(false);
     setLightboxDirection(0);
-  }, 400);
+  }, 450);
   setShowLightboxReactions(false);
 };
 
@@ -320,7 +321,7 @@ const goPrev = () => {
     setLightboxIndex((prev) => (prev - 1 + archive.length) % archive.length);
     setLightboxTransitioning(false);
     setLightboxDirection(0);
-  }, 400);
+  }, 450);
   setShowLightboxReactions(false);
 };
   // --- LIGHTBOX PHOTO TAP HANDLER (double tap = 🔥, long press = picker) ---
@@ -330,6 +331,7 @@ const handleLightboxPhotoPointerDown = (e: React.PointerEvent) => {
   swipeStartY.current = e.clientY;
   setLightboxDragY(0);
   setLightboxDragX(0);
+  swipeStartTime.current = Date.now();
   lightboxLongPress.current = setTimeout(() => {
     setShowLightboxReactions(true);
   }, 500);
@@ -341,16 +343,22 @@ const handleLightboxPhotoPointerUp = (e: React.PointerEvent) => {
     clearTimeout(lightboxLongPress.current);
     lightboxLongPress.current = null;
   }
+
   const deltaX = e.clientX - swipeStartX.current;
   const deltaY = e.clientY - swipeStartY.current;
+  const deltaTime = Date.now() - swipeStartTime.current;
+  const velocityX = Math.abs(deltaX) / deltaTime; // px per ms
 
   if (deltaY > 80 && Math.abs(deltaY) > Math.abs(deltaX)) {
     closeLightbox();
     return;
   }
 
-  const threshold = window.innerWidth * 0.2;
-  if (Math.abs(deltaX) > threshold && Math.abs(deltaX) > Math.abs(deltaY)) {
+  // Trigger if fast flick (velocity) OR long drag (distance)
+  const isFlick = velocityX > 0.5 && Math.abs(deltaX) > 20;
+  const isDrag = Math.abs(deltaX) > window.innerWidth * 0.2;
+
+  if ((isFlick || isDrag) && Math.abs(deltaX) > Math.abs(deltaY)) {
     if (deltaX < 0) goNext();
     else goPrev();
   } else {
@@ -574,12 +582,17 @@ const rotation = lightboxTransitioning
     height: "100%",
     position: "relative",
     transformStyle: "preserve-3d",
-    transform: `translateZ(-${cubeDepth}px) rotateY(${rotation}deg)`,
+    transform: (() => {
+      const dragPercent = Math.min(Math.abs(lightboxDragX) / (typeof window !== "undefined" ? window.innerWidth : 400), 1);
+      const scale = lightboxTransitioning ? 0.88 : 1 - (dragPercent * 0.12);
+      return `translateZ(-${cubeDepth}px) rotateY(${rotation}deg) scale(${scale})`;
+    })(),
     transition: lightboxDragX === 0
-      ? "transform 0.4s cubic-bezier(0.22,1,0.36,1)"
+      ? "transform 0.5s cubic-bezier(0.15,0,0.15,1)"
       : "none",
   }}
->
+></div>
+  
   {/* FRONT FACE — current photo */}
   <div
     style={{
@@ -609,8 +622,7 @@ const rotation = lightboxTransitioning
       onClick={(e) => { e.stopPropagation(); goNext(); }}
     />
   </div>
-
-  {/* RIGHT FACE — next photo */}
+{/* RIGHT FACE — next photo */}
   <div
     style={{
       position: "absolute",
@@ -620,6 +632,8 @@ const rotation = lightboxTransitioning
       transform: `rotateY(90deg) translateZ(${cubeDepth}px)`,
       borderRadius: "16px",
       overflow: "hidden",
+      opacity: (lightboxDragX < 0 || lightboxDirection === 1) ? 1 : 0,
+      transition: "opacity 0.2s ease",
     }}
   >
     {(() => {
@@ -635,7 +649,7 @@ const rotation = lightboxTransitioning
     })()}
   </div>
 
-  {/* LEFT FACE — prev photo */}
+    {/* LEFT FACE — prev photo */}
   <div
     style={{
       position: "absolute",
@@ -645,6 +659,8 @@ const rotation = lightboxTransitioning
       transform: `rotateY(-90deg) translateZ(${cubeDepth}px)`,
       borderRadius: "16px",
       overflow: "hidden",
+      opacity: (lightboxDragX > 0 || lightboxDirection === -1) ? 1 : 0,
+      transition: "opacity 0.2s ease",
     }}
   >
     {(() => {
