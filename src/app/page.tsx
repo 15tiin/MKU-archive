@@ -475,7 +475,7 @@ const getCarouselCardProps = (index: number) => {
   };
 
   const leaderVotes = Math.max(...nominees.map((n) => n.votes || 0));
-  const cubeDepth = typeof window !== "undefined" ? window.innerWidth / 2 : 200;
+  const cubeDepth = typeof window !== "undefined" ? Math.min(window.innerWidth * 0.3, 120) : 120;
 const rotation = lightboxTransitioning
   ? lightboxDirection * -90
   : Math.max(-90, Math.min(90, (lightboxDragX / (typeof window !== "undefined" ? window.innerWidth : 400)) * -90));
@@ -555,7 +555,7 @@ const rotation = lightboxTransitioning
     width: "90vw",
     maxWidth: "420px",
     height: "85vh",
-    perspective: "1200px",
+    perspective: "800px",
     touchAction: "none",
   }}
   onPointerDown={handleLightboxPhotoPointerDown}
