@@ -640,7 +640,7 @@ const rotation = lightboxTransitioning
   >
     <img
       src={currentLightboxPhoto.url}
-      style={{ width: "100%", height: "100%", objectFit: "contain", display: "block" }}
+      style={{ width: "100%", height: "100%", objectFit: "cover", display: "block" }}
       alt="photo"
       draggable={false}
     />
@@ -676,7 +676,7 @@ opacity:1,
     {archive[(lightboxIndex + 1) % archive.length] && (
       <img
         src={archive[(lightboxIndex + 1) % archive.length].url}
-        style={{ width: "100%", height: "100%", objectFit: "contain", display: "block" }}
+        style={{ width: "100%", height: "100%", objectFit: "cover", display: "block" }}
         alt="next"
         draggable={false}
       />
@@ -703,7 +703,7 @@ opacity: 1,
     {archive[(lightboxIndex - 1 + archive.length) % archive.length] && (
       <img
         src={archive[(lightboxIndex - 1 + archive.length) % archive.length].url}
-        style={{ width: "100%", height: "100%", objectFit: "contain", display: "block" }}
+        style={{ width: "100%", height: "100%", objectFit: "cover", display: "block" }}
         alt="prev"
         draggable={false}
       />
