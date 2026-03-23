@@ -10,6 +10,15 @@ export default function Home() {
   const [hasEntered, setHasEntered] = useState(false);
   const [voted, setVoted] = useState(false);
   const [showSwipeHint, setShowSwipeHint] = useState(true);
+
+// Add this useEffect to hide the hint once they scroll down 100px
+useEffect(() => {
+  const handleScroll = () => {
+    if (window.scrollY > 100) setShowSwipeHint(false);
+  };
+  window.addEventListener("scroll", handleScroll);
+  return () => window.removeEventListener("scroll", handleScroll);
+}, []);
   const [showBackToTop, setShowBackToTop] = useState(false);
   const [swipeHintCount, setSwipeHintCount] = useState(0);
 
@@ -300,29 +309,39 @@ useEffect(() => {
   };
 
 const goNext = () => {
-  if (lightboxTransitioning) return;
-  setLightboxTransitioning(true);
-  setLightboxDirection(-1);
+  if (lightboxTransitioning) return; // Don't allow clicking while moving
+  setLightboxTransitioning(true); // Start the move
+  
+  // 1. Physically turn the box 90 degrees to the left
+  setLightboxDragX(-window.innerWidth); 
+
+  // 2. Wait a split second (450ms) for the turn to finish
   setTimeout(() => {
+    // 3. Now that the turn is DONE, swap the photo to the next one
     setLightboxIndex((prev) => (prev + 1) % archive.length);
-    setLightboxTransitioning(false);
-    setLightboxDirection(0);
+    
+    // 4. "Reset" the box position to 0 so the new photo is centered
+    setLightboxTransitioning(false); 
     setLightboxDragX(0);
-  }, 450);
-  setShowLightboxReactions(false);
+  }, 450); 
 };
 
 const goPrev = () => {
-  if (lightboxTransitioning) return;
-  setLightboxTransitioning(true);
-  setLightboxDirection(1);
+  if (lightboxTransitioning) return; // Don't allow clicking while moving
+  setLightboxTransitioning(true); // Start the move
+  
+  // 1. Physically turn the box 90 degrees to the left
+  setLightboxDragX(+window.innerWidth); 
+
+  // 2. Wait a split second (450ms) for the turn to finish
   setTimeout(() => {
-    setLightboxIndex((prev) => (prev - 1 + archive.length) % archive.length);
-    setLightboxTransitioning(false);
-    setLightboxDirection(0);
+    // 3. Now that the turn is DONE, swap the photo to the next one
+    setLightboxIndex((prev) => (prev - 1) % archive.length);
+    
+    // 4. "Reset" the box position to 0 so the new photo is centered
+    setLightboxTransitioning(false); 
     setLightboxDragX(0);
-  }, 450);
-  setShowLightboxReactions(false);
+  }, 450); 
 };
   // --- LIGHTBOX PHOTO TAP HANDLER (double tap = 🔥, long press = picker) ---
 const handleLightboxPhotoPointerDown = (e: React.PointerEvent) => {
@@ -459,10 +478,18 @@ navigator.vibrate?.([80, 60, 80, 60, 200]);
 
 const getCarouselCardProps = (index: number) => {
   const diff = ((index - carouselActive) % carouselTotal + carouselTotal) % carouselTotal;
-  if (diff === 0) return { zIndex: 40, scale: 1, x: "0%", rotateY: 0, opacity: 1 };
-  if (diff === 1) return { zIndex: 30, scale: 0.82, x: "60%", rotateY: -28, opacity: 0.5 };
-  if (diff === carouselTotal - 1) return { zIndex: 30, scale: 0.82, x: "-60%", rotateY: 28, opacity: 0.5 };
-  return { zIndex: 10, scale: 0.6, x: "0%", rotateY: 180, opacity: 0 };
+  
+  // Center Card (The Focus)
+  if (diff === 0) return { zIndex: 50, scale: 1, x: "0%", rotateY: 0, opacity: 1, z: 100 };
+  
+  // Right Card (Angled away)
+  if (diff === 1) return { zIndex: 30, scale: 0.8, x: "75%", rotateY: -45, opacity: 0.6, z: 0 };
+  
+  // Left Card (Angled away)
+  if (diff === carouselTotal - 1) return { zIndex: 30, scale: 0.8, x: "-75%", rotateY: 45, opacity: 0.6, z: 0 };
+  
+  // Hidden Cards (Background)
+  return { zIndex: 10, scale: 0.5, x: "0%", rotateY: 180, opacity: 0, z: -200 };
 };
   const startVibes = () => {
     setHasEntered(true);
@@ -582,13 +609,19 @@ const rotation = lightboxTransitioning
     position: "relative",
     transformStyle: "preserve-3d",
     transform: (() => {
-      const dragPercent = Math.min(Math.abs(lightboxDragX) / (typeof window !== "undefined" ? window.innerWidth : 400), 1);
-      const scale = lightboxTransitioning ? 0.88 : 1 - (dragPercent * 0.12);
-      return `translateZ(-${cubeDepth}px) rotateY(${rotation}deg) scale(${scale})`;
-    })(),
-    transition: lightboxDragX === 0
-      ? "transform 0.5s cubic-bezier(0.15,0,0.15,1)"
-      : "none",
+  // This ensures the rotation is based on the journey, not just the finger position
+  const currentRotation = lightboxTransitioning 
+    ? (lightboxDragX > 0 ? 90 : -90) 
+    : (lightboxDragX / (typeof window !== "undefined" ? window.innerWidth : 400)) * 90;
+
+  const scale = lightboxTransitioning ? 0.95 : 1; 
+  
+  return `translateZ(-${cubeDepth}px) rotateY(${currentRotation}deg) scale(${scale})`;
+})(),
+// IMPORTANT: Add this transition line right below it
+     transition: lightboxTransitioning ? "transform 450ms cubic-bezier(0.15, 0, 0.15, 1)" : "none",
+      
+     
   }}
 >
   {/* FRONT FACE — current photo */}
@@ -635,7 +668,8 @@ const rotation = lightboxTransitioning
       borderRadius: "16px",
       overflow: "hidden",
       backgroundColor: "#000",
-      opacity: (lightboxDragX < 0 || lightboxDirection === 1) ? 1 : 0,
+boxShadow: "inset 100px 0 100px rgba(0,0,0,0.7)", // Adds depth shadow
+opacity:1,
       transition: "opacity 0.2s ease",
     }}
   >
@@ -661,7 +695,8 @@ const rotation = lightboxTransitioning
       borderRadius: "16px",
       overflow: "hidden",
       backgroundColor: "#000",
-      opacity: (lightboxDragX > 0 || lightboxDirection === -1) ? 1 : 0,
+boxShadow: "inset 100px 0 100px rgba(0,0,0,0.7)", // Adds depth shadow
+opacity: 1,
       transition: "opacity 0.2s ease",
     }}
   >
@@ -805,7 +840,28 @@ const rotation = lightboxTransitioning
                 </motion.div>
               </div>
               <div className="absolute bottom-0 left-0 right-0 h-32 bg-gradient-to-t from-black to-transparent z-20" />
-            </section>
+  
+  {/* INTERACTIVE SWIPE HINT */}
+  <AnimatePresence>
+    {showSwipeHint && (
+      <motion.div 
+        initial={{ opacity: 0, y: -20 }}
+        animate={{ opacity: 1, y: 0 }}
+        exit={{ opacity: 0, y: 20 }}
+        className="absolute bottom-10 left-1/2 -translate-x-1/2 z-30 flex flex-col items-center gap-3 pointer-events-none"
+      >
+        <motion.div 
+          animate={{ y: [0, 10, 0] }} 
+          transition={{ repeat: Infinity, duration: 2, ease: "easeInOut" }}
+          className="w-[1px] h-14 bg-gradient-to-b from-transparent via-white to-transparent"
+        />
+        <span className="text-[8px] tracking-[0.6em] uppercase font-bold text-white/50 italic">
+          Scroll to enter
+        </span>
+      </motion.div>
+    )}
+  </AnimatePresence>
+</section>
 
             {/* BEST DRIP CAROUSEL */}
             <section className="py-16 px-0 overflow-hidden">
@@ -848,7 +904,13 @@ else carouselPrev();
                         opacity: props.opacity,
                         zIndex: props.zIndex,
                       }}
-                      transition={{ type: "spring", stiffness: 120, damping: 25, mass: 1.2 }}
+                      transition={{ 
+  type: "spring", 
+  stiffness: 80,   // Lower stiffness = smoother movement
+  damping: 20,     // Prevents too much "bouncing"
+  mass: 1.5,       // Makes the card feel like it has actual weight
+  power: 0.2       // Better for flicking through cards fast
+}}
                       onClick={() => {
                         if (!isActive) {
                           const diff = ((i - carouselActive) % nominees.length + nominees.length) % nominees.length;
